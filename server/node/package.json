@@ -18,8 +18,8 @@
   "dependencies": {
     "access-log": "0.3.x",
     "commander": "2.1.x",
-    "jslonlint": "1.6.x",
-    "send": "0.2.x",
+    "jsonlint": "1.6.x",
+    "send": "0.2.x"
   },
   "main": "hippo.js",
   "engines": {

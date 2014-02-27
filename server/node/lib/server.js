@@ -56,6 +56,16 @@ function processRequest(request, response, serverManifestFilename, subpath, data
             return httpInternalError(response);
         }
     }
+
+    // set defaults where needed
+    if (manifest.dashManifest == undefined) {
+        manifest.dashManifest = { file: 'stream.mpd'};
+    }
+    if (manifest.smoothManifest == undefined) {
+        manifest.smoothManifest = { file: 'stream.ismc'};
+    }
+
+    // serve the DASH manifest
     if (manifest.dashManifest) {
         if (subpath == (manifest.dashManifest.url || "mpd")) {
             response.setHeader('Content-Type', 'application/dash+xml');
@@ -65,6 +75,8 @@ function processRequest(request, response, serverManifestFilename, subpath, data
             return;
         }
     }
+
+    // serve the Smooth manifest
     if (manifest.smoothManifest) {
         if (subpath == (manifest.smoothManifest.url || "Manifest")) {
             response.setHeader('Content-Type', 'application/vnd.ms-sstr+xml');

@@ -14,10 +14,10 @@ var accesslog = require('access-log');
 options
     .version('0.1.0')
     .option('-p, --port [port]', 'Listen on port number [port] (default 8000))', 8000)
-    .option('-c, --config [filename]', 'Config file (default hippo-config.json)', 'hippo-config.json')
+    .option('-c, --config [filename]', 'Config file')
     .option('-l, --log-level [log-level]', 'Logging level (between 0 and 10, default=1)', 1)
     .option('-o, --log-output [log-output-file]', 'Log output file name (default=stdout)')
-    .option('-r, --file-root [directory-path]', 'Path to root directory where streams are located (default=./streams)', 'streams')
+    .option('-r, --file-root [directory-path]', 'Path to root directory where streams are located (default=./)', '')
     .option('-u, --url-root [url-root]', 'Root URL path at which files are exposed (default=/)', '/')
     .option('-x, --no-cross-domain', 'Do not serve a crossdomain.xml file', false)
     .option('-d, --debug', 'Debug mode')
@@ -25,13 +25,13 @@ options
 
 // load the server config
 var configFile = options.config;
-if (configFile.indexOf('/') != 0) {
+if (configFile && configFile.indexOf('/') != 0) {
     configFile = './'+configFile;
 }
 
 // parse the config file
 var config = {};
-if (fs.existsSync(configFile)) {
+if (configFile && fs.existsSync(configFile)) {
     try {
         var configData = fs.readFileSync(configFile, {encoding: 'utf8'});
     } catch (err) {
