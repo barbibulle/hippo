@@ -37,7 +37,7 @@ Usage: hippo.js [options]
     -h, --help                          output usage information
     -V, --version                       output the version number
     -p, --port [port]                   Listen on port number [port] (default 8000))
-    -c, --config [filename]             Config file (default hippo-config.json)
+    -c, --config [filename]             Config file
     -l, --log-level [log-level]         Logging level (between 0 and 10, default=1)
     -o, --log-output [log-output-file]  Log output file name (default=stdout)
     -r, --file-root [directory-path]    Path to root directory where streams are located (default=./streams)
@@ -51,7 +51,7 @@ Serve all streams located below /var/media/streams, exposed below the root of th
 ```
 node hippo.js -r /var/media/streams
 ```
-So, for instance, if a directory `video1` is located under `/var/media/streams`, contains a manifest file named `stream.msm`, and the server DNS name is myserver.com, the MPEG DASH URL would be `http://myserver.com/video1/mpd`
+So, for instance, if a directory `video1` is located under `/var/media/streams`, contains a manifest file named `stream.msm`, and the server DNS name is myserver.com, the MPEG DASH URL (if there is a DASH client manifest under `video1`) would be `http://myserver.com/video1/stream.msm/mpd` and the Smooth Streaming URL (if there is a Smooth Streaming client manifest under `video1`) would be `http://myserver.com/video1/stream.msm/Manifest`
  
 ### Configuration with a Server Configuration File
 
@@ -101,6 +101,8 @@ Member        | Mandatory? | Type    | Value
 urls          |     Y      | Array   | One or more UrlPattern Object(s)
 file          |     Y      | String  | filename of the MP4 file containing the media
 
+Even though the `urls` array may contain more than one `UrlPattern` object, it typically only contains just one. The only reason to use more than one would be if there should be several alternative URLs mapping to the same segments.
+
 #### InitSegment Object (MPEG DASH only)
 
 Member        | Mandatory? | Type    | Value
@@ -119,14 +121,14 @@ fields        |     Y      | Array   | Array of strings, one for each capture gr
 
 Member        | Mandatory? | Type    | Value
 ------------- | ---------- | ------- | -----
-file          |     N      | String  | Name of the file containing the MPEG DASH MPD
+file          |     N      | String  | Name of the file containing an MPEG DASH MPD
 url           |     N      | String  | Basename of the MPD in the URL (default: 'mpd')
 
 #### SmoothManifest Object
 
 Member        | Mandatory? | Type    | Value
 ------------- | ---------- | ------- | -----
-file          |     N      | String  | Name of the file containing the Smooth Client Manifest (.ismc)
+file          |     N      | String  | Name of the file containing a Smooth Streaming client manifest (.ismc)
 
 
 In regular expressions, a capture group is enclosed in `()`, so remember to escape `(` and `)` characters if they appear in your URLs. Also, remember to properly escape `\` characters in your regular expressions, because single `\` characters are used as escape marker in JSON. For example, the regular expression `QualityLevels\((\d+)\)/Fragments\(audio_en=(\d+)\)` would be represented as the JSON string `"QualityLevels\\((\\d+)\\)/Fragments\\(audio_en=(\\d+)\\)"` in your file, and would match the URL part `QualityLevels(1000)/Fragments(audio_en=1234)`
@@ -135,38 +137,43 @@ Example of a minimal single-bitrate MPEG DASH / Smooth Streaming Media Stream Ma
 
 ```
 {
-  "media": [
-    {
-      "trackId": 1,
-      "mediaSegments": {
-        "urls": [
-          {
-            "pattern": "QualityLevels\\(279981\\)/Fragments\\(video=(\\d+)\\)",
-            "fields": ["time"]
-          }
-        ],
-        "file": "video_freund_fragmented.mp4"
-      },
-      "initSegment": {
-        "file": "init-01-01.mp4"
-      }
+  "media": [{
+    "trackId": 1,
+    "mediaSegments": {
+      "urls": [{
+        "pattern": "QualityLevels\\(279981\\)/Fragments\\(video=(\\d+)\\)",
+        "fields": ["time"]
+      }],
+      "file": "video_freund_fragmented.mp4"
     },
-    {
-      "trackId": 2,
-      "mediaSegments": {
-        "urls": [
-          {
-            "pattern": "QualityLevels\\(132530\\)/Fragments\\(audio_fr=(\\d+)\\)",
-            "fields": ["time"]
-          }
-        ],
-        "file": "video_freund_fragmented.mp4"
-      },
-      "initSegment": {
-        "file": "init-01-02.mp4"
-      }
+    "initSegment": {
+      "file": "init-01-01.mp4"
     }
-  ]
+  },{
+    "trackId": 2,
+    "mediaSegments": {
+      "urls": [{
+        "pattern": "QualityLevels\\(132530\\)/Fragments\\(audio_fr=(\\d+)\\)",
+        "fields": ["time"]
+        }],
+      "file": "video_freund_fragmented.mp4"
+    },
+    "initSegment": {
+      "file": "init-01-02.mp4"
+    }
+  }]
 }
 ```
 
+Default URL/File Mappings
+---------------------
+
+Unless specified otherwise through command-line arguments and/or a configuration file, the default setting is as follows.
+
+* The URL path `<path-to-msm-file>/Manifest` maps to the file named `stream.ismc` (if it exists) in the same directory as the .msm file.
+* The URL path `<path-to-msm-file>/mpd` maps to the file name `stream.mpd` (if it exists) in the same directory as the .msm file. 
+
+For example, if the server has a filesystem directory `/var/streams/video1` that contains a Media Server Manifest `stream.msm`, a Smooth Streaming client manifest `stream.ismc` and an MPEG DASH MPD `stream.mpd` (as well as the media files), and the server is run with a URL root `/myvideostreams` (specified using the `--url-root` option or a config file) and a file root `/var/streams` (specified using the `--file-root` options or a config file), with a DNS name `myserver.com`, then the Smooth Streaming URL would be:
+`http://myserver.com/myvideostreams/video1/stream.msm/Manifest`
+and the MPEG DASH URL would be: 
+`http://myserver.com/myvideostreams/video1/stream.msm/mpd`

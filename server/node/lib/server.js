@@ -33,10 +33,10 @@ function readManifest(root, relativePath, callback) {
     var filename = path.join(root, head);
     fs.stat(filename, function(err, stat) {
         if (err || !stat.isFile()) {
-            if (tail) {
+            if (tail && tail.indexOf('/') > 0) {
                 return readManifest(filename, tail, callback);
             } else {
-                return callback('not found', null, null);
+                return callback(new Error('not found'), null, null);
             }
         }
         fs.readFile(filename, { encoding: 'utf-8' }, function(err, data) {
@@ -181,7 +181,18 @@ module.exports = function(config) {
         }
         relativePath = filePath.substring(config.fileRoot.length+1);
 
-        // find anchor point for the manifest name
+        // remove trailing / characters
+        while (relativePath.length > 0 && relativePath[relativePath.length] == '/') {
+            relativePath = relativePath.slice(0, relativePath.length-1)
+        }
+
+        // only relative paths that start with a stream manifest path are valid
+        // so there must be a / character somewhere in the middle
+        if (relativePath.indexOf('/') <= 0) {
+            return httpNotFound(response);
+        }
+
+        // find the anchor point for the manifest path
         readManifest(config.fileRoot, relativePath, function(err, serverManifest, path, data) {
             if (err) {
                 if (config.debug) {
