@@ -36,12 +36,12 @@ function parseTfra(payload) {
             entry.moofOffset = payload.readUInt32BE(offset+4);
             offset += 8;
         } else if (version == 1) {
-            var timeL       = payload.readUInt32BE(offset);
-            var timeH       = payload.readUInt32BE(offset+4);
-            var moofOffsetL = payload.readUInt32BE(offset+8);
-            var moofOffsetH = payload.readUInt32BE(offset+12);
-            entry.time = timeH*0xFFFFFFFF+timeL;
-            entry.moofOffset = moofOffsetH*0xFFFFFFFF+moofOffsetL;
+            var timeH       = payload.readUInt32BE(offset);
+            var timeL       = payload.readUInt32BE(offset+4);
+            var moofOffsetH = payload.readUInt32BE(offset+8);
+            var moofOffsetL = payload.readUInt32BE(offset+12);
+            entry.time = timeH*0x100000000+timeL;
+            entry.moofOffset = moofOffsetH*0x100000000+moofOffsetL;
             offset += 16;
         } else {
             return null;
