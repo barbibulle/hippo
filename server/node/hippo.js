@@ -20,6 +20,7 @@ options
     .option('-r, --file-root [directory-path]', 'Path to root directory where streams are located (default=./)', '')
     .option('-u, --url-root [url-root]', 'Root URL path at which files are exposed (default=/)', '/')
     .option('-x, --no-cross-domain', 'Do not serve a crossdomain.xml file', false)
+    .option('-n, --no-cors-headers', 'Do not set CORS headers', false)
     .option('-d, --debug', 'Debug mode')
     .parse(process.argv);
 
@@ -80,6 +81,11 @@ if (config.debug == undefined) {
 if (config.crossDomain == undefined) {
     config.crossDomain = !options.noCrossDomain;
 }
+
+if (config.setCorsHeaders == undefined) {
+    config.setCorsHeaders = !options.noCorsHeaders;
+}
+
 // show some of the config data
 if (config.debug) {
     console.log("CONFIG:", config);

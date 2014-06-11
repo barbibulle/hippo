@@ -134,13 +134,15 @@ function processRequest(request, response, serverManifestFilename, subpath, data
                 return;
             }
         }
-        match = subpath.match(manifest.media[i].initSegment.url || manifest.media[i].initSegment.file);
-        if (match) {
-            response.setHeader('Content-Type', 'video/mp4');
-            send(request, manifest.media[i].initSegment.file)
-                .root(path.dirname(serverManifestFilename))
-                .pipe(response);
-            return;
+        if (manifest.media[i].initSegment) {
+            match = subpath.match(manifest.media[i].initSegment.url || manifest.media[i].initSegment.file);
+            if (match) {
+                response.setHeader('Content-Type', 'video/mp4');
+                send(request, manifest.media[i].initSegment.file)
+                    .root(path.dirname(serverManifestFilename))
+                    .pipe(response);
+                return;
+            }
         }
     }
 
@@ -179,7 +181,7 @@ module.exports = function(config) {
             console.error("ERROR: file not under root");
             return httpNotFound(response);
         }
-        relativePath = filePath.substring(config.fileRoot.length+1);
+        relativePath = filePath.substring(config.fileRoot.length+1).replace(/\\/g, '/');
 
         // remove trailing / characters
         while (relativePath.length > 0 && relativePath[relativePath.length] == '/') {
@@ -190,6 +192,11 @@ module.exports = function(config) {
         // so there must be a / character somewhere in the middle
         if (relativePath.indexOf('/') <= 0) {
             return httpNotFound(response);
+        }
+
+        // set CORS headers
+        if (config.setCorsHeaders) {
+            response.setHeader('Access-Control-Allow-Origin', '*');
         }
 
         // find the anchor point for the manifest path
