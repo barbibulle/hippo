@@ -2,24 +2,13 @@
 
 var fs = require('fs');
 
-function parseBoxes(payload, callback) {
-    var available = payload.length;
-    var offset = 0;
-    while (available >= 8) {
-        var boxSize = payload.readUInt32BE(offset);
-        var boxType = payload.readUInt32BE(offset+4);
-        if (boxSize < 8 || boxSize > available) return;
-        callback(boxType, boxSize-8, payload.slice(offset+8, offset+boxSize));
-        available -= boxSize;
-        offset    += boxSize;
-    }
-}
-
-function parseTfra(payload) {
-    var tfra = { entries:[] };
-
+function findMoofInTfra(payload, trackId, timestamp) {
     var version               = payload[0];
-        tfra.trackId          = payload.readUInt32BE(4);
+    var tfraTrackId           = payload.readUInt32BE(4);
+
+    // stop now if this is for a different track
+    if (tfraTrackId != trackId) return null;
+
     var lengthSizeOfTrafNum   = (payload[11]>>4)&3;
     var lengthSizeOfTrunNum   = (payload[11]>>2)&3;
     var lengthSizeOfSampleNum = (payload[11]   )&3;
@@ -28,32 +17,59 @@ function parseTfra(payload) {
     var offset = 16;
     var entrySize = 1+lengthSizeOfTrafNum+1+lengthSizeOfTrunNum+1+lengthSizeOfSampleNum;
     for (var i=0; i<entryCount; i++) {
-        tfra.entries[i] = {};
-        var entry = tfra.entries[i];
-
         if (version == 0) {
-            entry.time       = payload.readUInt32BE(offset);
-            entry.moofOffset = payload.readUInt32BE(offset+4);
+            var moofTime   = payload.readUInt32BE(offset);
+            var moofOffset = payload.readUInt32BE(offset+4);
             offset += 8;
         } else if (version == 1) {
-            var timeH       = payload.readUInt32BE(offset);
-            var timeL       = payload.readUInt32BE(offset+4);
+            var moofTimeH   = payload.readUInt32BE(offset);
+            var moofTimeL   = payload.readUInt32BE(offset+4);
             var moofOffsetH = payload.readUInt32BE(offset+8);
             var moofOffsetL = payload.readUInt32BE(offset+12);
-            entry.time = timeH*0x100000000+timeL;
-            entry.moofOffset = moofOffsetH*0x100000000+moofOffsetL;
+            var moofTime    = moofTimeH*0x100000000+moofTimeL;
+            var moofOffset  = moofOffsetH*0x100000000+moofOffsetL;
             offset += 16;
         } else {
             return null;
         }
 
+        // return a result if we have found the time we're looking for
+        if (moofTime == timestamp) {
+            return moofOffset;
+        }
+
+        // move to the next entry
         offset += entrySize;
     }
-
-    return tfra;
 }
 
-exports.parse = function(filename, callback) {
+function locateFragment(fd, moofOffset, boxOffset, callback) {
+    fs.read(fd, new Buffer(8), 0, 8, boxOffset, function(err, bytesRead, payload) {
+        if (err) {
+            return callback(err, null);
+        }
+
+        if (bytesRead != 8) {
+            return callback(new Error('short read'), null);
+        }
+
+        var boxSize = payload.readUInt32BE(0);
+        var boxType = payload.readUInt32BE(4);
+        if (boxSize < 8) {
+            return callback(new Error('invalid format'), null);
+        };
+
+        if (boxType == 0x6d646174) {
+            // found 'mdat'
+            var moofEnd = boxOffset+boxSize-1;
+            return callback(null, {start: moofOffset, end: moofEnd})
+        } else {
+            locateFragment(fd, moofOffset, boxOffset+boxSize, callback);
+        }
+    });
+}
+
+exports.findFragment = function(filename, trackId, timestamp, callback) {
     fs.open(filename, 'r', function(err, fd) {
         if (err) return callback(err, null);
 
@@ -131,17 +147,26 @@ exports.parse = function(filename, callback) {
                             return done(new Error('cannot read the entire box'), null);
                         }
 
-                        // walk all boxes in the container
-                        var tfras = [];
-                        parseBoxes(mfra, function(boxType, boxSize, boxPayload) {
+                        // walk all boxes in the mfra container
+                        var available = mfraSize-8;
+                        var offset = 0;
+                        while (available >= 8) {
+                            var boxSize = mfra.readUInt32BE(offset);
+                            var boxType = mfra.readUInt32BE(offset+4);
+                            if (boxSize < 8 || boxSize > available) {
+                                return done(new Error('invalid format'), null);
+                            }
                             if (boxType == 0x74667261) {
-                                var tfra = parseTfra(boxPayload);
-                                if (tfra) {
-                                    tfras.push(tfra);
+                                var moofOffset = findMoofInTfra(mfra.slice(offset+8, offset+boxSize), trackId, timestamp);
+                                if (moofOffset !== null) {
+                                    return locateFragment(fd, moofOffset, moofOffset, done);
                                 }
                             }
-                        });
-                        return done(null, tfras);
+
+                            available -= boxSize;
+                            offset    += boxSize;
+                        }
+                        return done(new Error('fragment not found in tfra'), null);
                     });
                 });
             });

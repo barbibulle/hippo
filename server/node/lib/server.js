@@ -100,35 +100,21 @@ function processRequest(request, response, serverManifestFilename, subpath, data
                 }
 
                 // parse the MP4 file to get the index
-                mp4.parse(path.join(path.dirname(serverManifestFilename), manifest.media[i].mediaSegments.file), function(err, mp4Index) {
+                mp4.findFragment(path.join(path.dirname(serverManifestFilename), manifest.media[i].mediaSegments.file),
+                                 manifest.media[i].trackId,
+                                 requestFields.time,
+                                 function(err, fragmentPosition) {
                     if (err) {
                         console.error(err);
                         return httpNotFound(response);
                     }
-                    if (mp4Index) {
-                        // look for the requested track ID
-                        for (var x=0; x<mp4Index.length; x++) {
-                            if (mp4Index[x].trackId == manifest.media[i].trackId) {
-                                // look for the entry by time
-                                for (var z=0; z<mp4Index[x].entries.length; z++) {
-                                    if (mp4Index[x].entries[z].time == requestFields.time) {
-                                        // found it!
-                                        var startOffset = mp4Index[x].entries[z].moofOffset;
-                                        var endOffset;
-                                        if (z < mp4Index[x].entries.length-1) {
-                                            // not the last segment
-                                            endOffset = mp4Index[x].entries[z+1].moofOffset;
-                                        }
-                                        var sendOptions = {start: startOffset, end: endOffset};
-                                        send(request, manifest.media[i].mediaSegments.file, sendOptions)
-                                            .root(path.dirname(serverManifestFilename))
-                                            .pipe(response);
-                                        return;
-                                    }
-                                }
-                            }
-                        }
+                    if (fragmentPosition) {
+                        send(request, manifest.media[i].mediaSegments.file, fragmentPosition)
+                            .root(path.dirname(serverManifestFilename))
+                            .pipe(response);
+                        return;
                     }
+
                     return httpNotFound(response);
                 });
                 return;
